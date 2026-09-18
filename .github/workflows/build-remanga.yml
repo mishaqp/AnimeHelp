@@ -78,6 +78,10 @@ jobs:
           p.write_text(s)
           PY
 
+      - name: Format source
+        working-directory: ext
+        run: ./gradlew :src:ru:remanga:spotlessApply --no-daemon
+
       - name: Build
         working-directory: ext
         run: ./gradlew :src:ru:remanga:assembleRelease --stacktrace --no-daemon
