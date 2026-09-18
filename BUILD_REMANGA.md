@@ -1,3 +1,3 @@
 # ReManga Tadami build trigger
 
-Retry: HttpSource port.
+Retry: publish browser APK.
