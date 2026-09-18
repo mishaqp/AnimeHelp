@@ -1,3 +1,3 @@
 # ReManga Tadami build trigger
 
-Retry: spotless enabled.
+Retry: HttpSource port.
