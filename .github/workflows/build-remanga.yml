@@ -2,6 +2,7 @@ name: Build ReManga Tadami APK
 
 on:
   push:
+  pull_request:
   workflow_dispatch:
 
 permissions:
