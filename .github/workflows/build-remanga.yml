@@ -1,0 +1,97 @@
+name: Build ReManga Tadami APK
+
+on:
+  push:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Clone Keiyoushi
+        run: git clone --depth=1 https://github.com/keiyoushi/extensions-source.git ext
+
+      - name: Inject ReManga
+        shell: bash
+        run: |
+          set -euxo pipefail
+          cd ext
+          MOD=src/ru/remanga
+          PKG="$MOD/src/eu/kanade/tachiyomi/extension/ru/remanga"
+          mkdir -p "$PKG"
+
+          cat > "$MOD/build.gradle.kts" <<'EOF'
+          import io.github.keiyoushi.gradle.api.ContentWarning
+
+          plugins {
+              alias(kei.plugins.extension)
+          }
+
+          keiyoushi {
+              name = "ReManga"
+              versionCode = 1
+              contentWarning = ContentWarning.MIXED
+              libVersion = "1.4"
+
+              source {
+                  lang = "ru"
+                  baseUrl = "https://remanga.org"
+              }
+          }
+          EOF
+
+          curl -fL "https://gist.githubusercontent.com/Bitnik212/f2b7e54101276d7a8f49f559b81ea6e0/raw/ReManga.kt" -o "$PKG/ReManga.kt"
+
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("src/ru/remanga/src/eu/kanade/tachiyomi/extension/ru/remanga/ReManga.kt")
+          s = p.read_text()
+
+          if "import keiyoushi.annotation.Source" not in s:
+              s = s.replace(
+                  "import uy.kohesive.injekt.injectLazy",
+                  "import uy.kohesive.injekt.injectLazy\nimport keiyoushi.annotation.Source",
+              )
+
+          s = s.replace(
+              "class ReManga : ParsedHttpSource() {",
+              "@Source\nabstract class ReManga : ParsedHttpSource() {",
+          )
+
+          remove = {
+              '    override val name: String = "ReManga"',
+              '    override val lang: String = "ru"',
+              '    override val baseUrl: String = siteUrl',
+              '    override val id: Long = 234234234325',
+          }
+          s = "\n".join(line for line in s.splitlines() if line not in remove) + "\n"
+          p.write_text(s)
+          PY
+
+      - name: Build
+        working-directory: ext
+        run: ./gradlew :src:ru:remanga:assembleRelease --stacktrace --no-daemon
+
+      - name: Collect APK
+        shell: bash
+        run: |
+          set -euxo pipefail
+          mkdir -p out
+          find ext/src/ru/remanga/build/outputs/apk -type f -name '*.apk' -print -exec cp {} out/ \;
+          ls -lah out
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: remanga-tadami-apk
+          path: out/*.apk
+          if-no-files-found: error
